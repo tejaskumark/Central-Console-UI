@@ -1,6 +1,3 @@
-__author__ = 'Apurva Patel'
-__copyright__ = "Copyright 2018, Mojo Networks"
-
 import logging, os, sys
 from logging.handlers import RotatingFileHandler
 
