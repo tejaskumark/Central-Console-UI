@@ -1,0 +1,28 @@
+version: "3.4"
+
+services:
+  centralconsoleview:
+    image: centralconsoleview
+    container_name: centralconsoleview
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    volumes:
+      - .:/app
+      - $HOME:/host
+    user: ${CURRENT_UID}
+    ports:
+      - 5001
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_reverseproxy_console
+    depends_on:
+      - centralconsoleview
+    volumes:
+      - ./nginx/nginx-static:/usr/share/nginx/html:ro
+      - ./nginx/nginx-conf/:/etc/nginx/conf.d
+      - ./nginx/nginx-cache:/var/cache/nginx
+      - ./nginx/nginx-pid:/var/run nginx
+    ports:
+      - 8080:8080

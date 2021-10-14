@@ -1,0 +1,765 @@
+<html>
+
+<head>
+    <meta name="author" content="Tejaskumar Kasundra">
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+        <a class="navbar-brand" href="#">Central Console Server</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse"
+            aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item active type">
+                    <a class="nav-link" value="port" href="#">Console Ports<span class="sr-only">(current)</span></a>
+                </li>
+                <li class="nav-item type">
+                    <a class="nav-link" value="host" href="#">RasPi Hosts</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    </div>
+</head>
+
+<style>
+    .th {
+        width: auto;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    hr.new4 {
+        border: solid black;
+    }
+
+    .cellContainer {
+        width: 25%;
+        float: left;
+        margin-top: 1.5em;
+    }
+
+    .lb-md {
+        font-size: 20px;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .table>tbody>tr>td {
+        width: auto;
+        vertical-align: middle;
+        text-align: center;
+    }
+</style>
+<link rel="stylesheet" type="text/css" href="static/Datatables/datatables.css" />
+<link href="static/bootstrap-4.1.3-dist/css/bootstrap.min.css" rel="stylesheet" />
+<script src="static/bootstrap-4.1.3-dist/js/jquery-3.4.1.min.js"></script>
+<script src="static/bootstrap-4.1.3-dist/js/bootstrap.min.js"></script>
+<script src="static/bootstrap-4.1.3-dist/js/bootbox.js"></script>
+<script src="static/Datatables/datatables.js"></script>
+<script src="static/bootstrap-4.1.3-dist/js/bootstrap-waitingfor.min.js"></script>
+<script>
+    // Boxalert for given user msg string.
+    function boxalert(msg) {
+        bootbox.alert({
+            message: msg,
+            callback: function (result) {
+            }
+        })
+    };
+
+    // Catch click on ports and FAQ tab.
+    $(function () {
+        if ($(".nav-item").click(function () {
+            var selection = $(this).children(".nav-link").attr("value")
+            $(".type").removeClass("active")
+            $(this).addClass("active")
+            if (selection == "port") {
+                document.getElementById("hostresponse").innerHTML = ""
+                $("#help").hide()
+                $("#portstag").show()
+                $("#hoststag").hide()
+                HomeTableCreation()
+            }
+            if (selection == "host") {
+                document.getElementById("portresponse").innerHTML = ""
+                $("#help").hide()
+                $("#portstag").hide()
+                $("#hoststag").show()
+                HostTableCreation()
+            }
+        }));
+    });
+
+    // On click modal event catch and populate existing data from row for host.
+    $(document).on('show.bs.modal', '#edithostmodal', function (event) {
+        var button = $(event.relatedTarget)
+        var modal = $(this)
+        modal.find('.modal-body #edithostlocation').
+            val(button.closest("tr").find("td:nth-child(1)").text())
+        modal.find('.modal-body #edithostname').
+            val(button.closest("tr").find("td:nth-child(2)").text())
+        modal.find('.modal-body #editport').
+            val(button.closest("tr").find("td:nth-child(3)").text())
+        modal.find('.modal-body #hostid').val(button.closest('tr').attr('id'))
+    });
+
+    // On click modal event catch and populate existing data from row for ssid.
+    $(document).on('show.bs.modal', '#editconsoleportmodal', function (event) {
+        var button = $(event.relatedTarget)
+        var modal = $(this)
+        modal.find('.modal-body #editdevicename').
+            val(button.closest("tr").find("td:nth-child(2)").text())
+        modal.find('.modal-body #editportid').
+            val(button.closest("tr").find("td:nth-child(3)").text())
+        modal.find('.modal-body #editbaudrate').
+            val(button.closest("tr").find("td:nth-child(4)").text())
+        modal.find('.modal-body #id').val(button.closest('tr').attr('id'))
+        var trid = button.closest('tr').attr('id')
+        console.log(trid)
+    });
+
+    // Call API and get response and populate table.
+    function HostTableCreation() {
+        var xhttp = new XMLHttpRequest()
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                waitingDialog.hide()
+                HostCreateTableFromJSON(this.responseText)
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                waitingDialog.hide()
+                boxalert("Host details get API failing.")
+            }
+        }
+        xhttp.open("GET", "get/hosts", true)
+        waitingDialog.show("Checking Host Status...")
+        xhttp.send()
+    };
+
+    // Fuction will create button based on input text and function.
+    function createbutton(cls, data, id, text, funtion_name, link) {
+        var parent = document.createElement("button")
+        parent.type = "button"
+        parent.className = cls
+        if (id != null) {
+            parent.id = id
+        }
+        if (data != null) {
+            for (ind in data) {
+                parent.setAttribute(ind, data[ind])
+            }
+        }
+        if (funtion_name != null) {
+            parent.setAttribute("onclick", funtion_name)
+        }
+        parent.innerHTML = text
+        if (link != null) {
+            parent.setAttribute("onclick", link)
+            parent.setAttribute("target", "_blank")
+        }
+        return parent
+    };
+
+    // Create Table from JSON response
+    function HostCreateTableFromJSON(JSONResponse) {
+        document.getElementById("hostresponse").innerHTML = ""
+        JSONConvert = JSON.parse(JSONResponse)
+        if (JSONConvert.length == 0) {
+            return
+        }
+        // Column Name
+        var col = ["Location", "Host Name", "Host Port", "", ""]
+
+        // CREATE DYNAMIC TABLE.
+        var table = document.createElement("table")
+        table.className += "table"
+        table.id = "dataTable"
+        var header = table.createTHead()
+        header.className += "thead-dark"
+
+        // CREATE HTML TABLE HEADER ROW USING THE EXTRACTED HEADERS ABOVE.
+        var tr = header.insertRow(-1)
+        for (var i = 0; i < col.length; i++) {
+            var th = document.createElement("th")
+            th.className += "th"
+            th.innerHTML = col[i]
+            tr.appendChild(th)
+        }
+
+        // Populate table from JSON Data. 
+        var col = []
+        var tb = table.createTBody()
+        tb.id += "myTable"
+        cellstyle = "word-wrap: break-word;min-width: 70px;max-width: 70px;white-space:normal;"
+        for (var i = 0; i < JSONConvert.length; i++) {
+            var row = tb.insertRow(-1)
+            var cell0 = row.insertCell(0)
+            var cell1 = row.insertCell(1)
+            var cell2 = row.insertCell(2)
+            var cell3 = row.insertCell(3)
+            var cell4 = row.insertCell(4)
+            row.id = JSONConvert[i].hostname + ":" + JSONConvert[i].port
+            cell0.innerHTML = JSONConvert[i].location
+            cell0.style = cellstyle
+            cell1.innerHTML = JSONConvert[i].hostname
+            cell1.style = cellstyle
+            cell2.innerHTML = JSONConvert[i].port
+            cell2.style = cellstyle
+            if (JSONConvert[i].status == 0) {
+                var statushost = createbutton("btn btn-sm btn-danger mr-2", null, null,
+                    "Offline", null)
+            } else {
+                var statushost = createbutton("btn btn-sm btn-success mr-2", null, null,
+                    "Online", null)
+            }
+            cell3.append(statushost)
+            del = createbutton("btn btn-sm btn-danger", null, null,
+                "Delete", "confirmdelete('" + JSONConvert[i].hostname + ":" + JSONConvert[i].port + "')", null)
+            tmp = { "data-toggle": "modal", "data-target": "#edithostmodal" }
+            edit = createbutton("btn btn-sm btn-info mr-2", tmp, null, "Edit", null, null)
+            cell4.append(edit, del)
+        }
+
+        // FINALLY ADD THE NEWLY CREATED TABLE WITH JSON DATA TO A CONTAINER.
+        var divContainer = document.getElementById("hostresponse")
+        divContainer.appendChild(table)
+        $('#dataTable').DataTable()
+    };
+
+    // Editport function to edit any existing port.
+    function editport() {
+        var data = {};
+        data["existingname"] = $("#hostid").val()
+        data["hostname"] = $("#edithostname").val()
+        data["port"] = $("#editport").val()
+        data["location"] = $("#edithostlocation").val()
+        var xhttp = new XMLHttpRequest()
+        xhttp.open("POST", "edit/host", true)
+        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+        xhttp.send(JSON.stringify(data))
+        $("#modal-submit").attr("disabled", true)
+        $("#modal-close").attr("disabled", true)
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                HostTableCreation()
+                $("#edithostmodal").modal("hide")
+                $("#modal-submit").removeAttr("disabled", true)
+                $("#modal-close").removeAttr("disabled", true)
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                $("#edithostmodal").modal("hide")
+                $("#modal-submit").removeAttr("disabled", true)
+                $("#modal-close").removeAttr("disabled", true)
+                boxalert(this.responseText)
+            }
+        }
+    };
+
+    // Delete record from db for given rowid
+    function confirmdelete(hosttuple, portflag) {
+        if (portflag == null) {
+            msg = "Ahh !! Do you really want to delete host" + hosttuple + "?"
+        } else {
+            msg = "Ahh !! Do you really want to delete port: " + hosttuple.split("&")[1] + " of Host: " + hosttuple.split("&")[0] + "?"
+        }
+        bootbox.confirm({
+            message: msg,
+            buttons: {
+                confirm: {
+                    label: 'Yes',
+                    className: 'btn-success'
+                },
+                cancel: {
+                    label: 'No',
+                    className: 'btn-danger'
+                }
+            },
+            callback: function (result) {
+                if (result) {
+                    if (portflag == null) {
+                        data = {}
+                        data["hosttuple"] = hosttuple
+                        var xhttp = new XMLHttpRequest()
+                        xhttp.open("DELETE", "delete/host", true)
+                        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+                        xhttp.send(JSON.stringify(data))
+                    } else {
+                        data = {}
+                        data["hosttuple"] = hosttuple
+                        var xhttp = new XMLHttpRequest()
+                        xhttp.open("DELETE", "delete/console/port", true)
+                        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+                        xhttp.send(JSON.stringify(data))
+                    }
+                    xhttp.onreadystatechange = function () {
+                        if (this.readyState == 4 && this.status == 200) {
+                            if (portflag == null) {
+                                HostTableCreation()
+                            } else {
+                                HomeTableCreation()
+                            }
+                        }
+                        if (this.readyState == 4 && this.status != 200) {
+                            boxalert(this.responseText);
+                        }
+                    }
+                }
+            }
+        });
+    };
+
+    // Call API and get response and populate table.
+    function HomeTableCreation() {
+        var xhttp = new XMLHttpRequest()
+        var xhttpport = new XMLHttpRequest()
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                hostsdropdown(this.responseText)
+                xhttpport.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        waitingDialog.hide()
+                        PortsTableCreation(this.responseText)
+                    }
+                    if (this.readyState == 4 && this.status == 206) {
+                        waitingDialog.hide()
+                        PortsTableCreation(this.responseText)
+                        jsonconvert = JSON.parse(this.responseText)
+                        msg = ""
+                        staticmsg = "The following host(s) did not respond in time, some port(s) will be missing.<br>"
+                        for (var i = 0; i < jsonconvert["errorhost"].length; i++) {
+                            msg = msg + "* " + jsonconvert["errorhost"][i] + "<br>"
+                        }
+                        // boxalert("Hosts:" + JSON.parse(this.responseText)["errorhost"] + " did not respond in time, some ports will be missing.")
+                        boxalert(staticmsg + msg)
+                    }
+                    if (this.readyState == 4 && this.status != 200 && this.status != 206) {
+                        waitingDialog.hide()
+                        boxalert("Error while fetching ports detail from host.")
+                    }
+                }
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                boxalert("Hosts details get API failing.")
+            }
+        }
+        xhttp.open("GET", "get/hosts/list", true)
+        waitingDialog.show("Getting Port Details...")
+        xhttp.send()
+        xhttpport.open("GET", "get/console/ports", true)
+        xhttpport.send()
+    };
+
+    // Create Table from JSON response
+    function PortsTableCreation(JSONResponse) {
+        document.getElementById("portresponse").innerHTML = ""
+        JSONConvert = JSON.parse(JSONResponse)
+        delete JSONConvert.errorhost
+        if (JSONConvert.length == 0) {
+            return
+        }
+        // BUILD Paths
+        var col = ["Host", "Description", "Port Name", "Port ID", "Baudrate", "", "Port Config"]
+
+        // CREATE DYNAMIC TABLE.
+        var table = document.createElement("table")
+        table.className += "table"
+        table.id = "PortDataTable"
+        var header = table.createTHead()
+        header.className += "thead-dark"
+
+        // CREATE HTML TABLE HEADER ROW USING THE EXTRACTED HEADERS ABOVE.
+        var tr = header.insertRow(-1)
+        for (var i = 0; i < col.length; i++) {
+            var th = document.createElement("th")
+            th.className += "th"
+            th.innerHTML = col[i]
+            tr.appendChild(th)
+        }
+
+        // Populate table from JSON Data. 
+        var col = []
+        var tb = table.createTBody()
+        tb.id += "myPortTable"
+        cellstyle = "word-wrap: break-word;min-width: 70px;max-width: 70px;white-space:normal;"
+        for (var host in JSONConvert) {
+            for (var i = 0; i < JSONConvert[host].length; i++) {
+                var eleid = host + "&" + JSONConvert[host][i]["Name"]
+                var desired_eleid = eleid.replace(/[:.&\/-\s]/gi, '')
+                var row = tb.insertRow(-1)
+                var cell0 = row.insertCell(0)
+                var cell1 = row.insertCell(1)
+                var cell2 = row.insertCell(2)
+                var cell3 = row.insertCell(3)
+                var cell4 = row.insertCell(4)
+                var cell5 = row.insertCell(5)
+                var cell6 = row.insertCell(6)
+                row.id = eleid
+                cell0.innerHTML = host
+                cell0.style = cellstyle
+                cell1.innerHTML = JSONConvert[host][i]["Description"]
+                cell1.style = cellstyle
+                cell2.innerHTML = JSONConvert[host][i]["Desc"]
+                cell2.style = cellstyle
+                cell3.innerHTML = JSONConvert[host][i]["Name"]
+                cell3.style = cellstyle
+                cell4.innerHTML = JSONConvert[host][i]["Baudrate"]
+                cell4.style = cellstyle
+                var link = "window.open('" + JSONConvert[host][i]["Terminal"] + "')"
+                var getconsole = createbutton("btn btn-sm btn-info mr-2", null, "console-" + desired_eleid,
+                    "Get Console", null, link)
+                link = "window.open('" + JSONConvert[host][i]["Logs"] + "')"
+                var getlogs = createbutton("btn btn-sm btn-info mr-2", null, "logs-" + desired_eleid,
+                    "Get Logs", null, link)
+                cell5.append(getconsole, getlogs)
+                if (JSONConvert[host][i].Status == 1) {
+                    var startstopport = createbutton("btn btn-sm btn-danger mr-2", null, "startstop-" + desired_eleid,
+                        "Disable", "stopport('" + eleid + "')", null)
+                } else if (JSONConvert[host][i].Status == 2) {
+                    var startstopport = createbutton("btn btn-sm btn-info mr-2", null, "startstop-" + desired_eleid,
+                        "Enable", "startport('" + eleid + "')", null)
+                    getlogs.disabled = true
+                    getconsole.disabled = true
+                } else if (JSONConvert[host][i].Status == 3) {
+                    var startstopport = createbutton("btn btn-sm btn-danger mr-2", null, "startstop-" + desired_eleid,
+                        "Disabling", null, null)
+                    getlogs.disabled = true
+                    getconsole.disabled = true
+                } else if (JSONConvert[host][i].Status == 4) {
+                    var startstopport = createbutton("btn btn-sm btn-info mr-2", null, "submit-" + desired_eleid,
+                        "Enabling", null, null)
+                    getlogs.disabled = true
+                    getconsole.disabled = true
+                }
+                del = createbutton("btn btn-sm btn-danger", null, "delete-" + desired_eleid,
+                    "Delete", "confirmdelete('" + eleid + "','1')")
+                tmp = { "data-toggle": "modal", "data-target": "#editconsoleportmodal" }
+                edit = createbutton("btn btn-sm btn-info mr-2", tmp, "edit-" + desired_eleid,
+                    "Edit", null)
+                cell6.append(startstopport, edit, del)
+            }
+        }
+
+        // FINALLY ADD THE NEWLY CREATED TABLE WITH JSON DATA TO A CONTAINER.
+        var divContainer = document.getElementById("portresponse")
+        divContainer.appendChild(table)
+        $('#PortDataTable').DataTable()
+    };
+
+    // Start port function
+    function startport(eleid) {
+        var desired_eleid = eleid.replace(/[:.&\/-\s]/gi, '')
+        var data = {}
+        data["hostname"] = eleid.split("&")[0]
+        data["port"] = eleid.split("&")[1]
+        $("#startstop-" + desired_eleid).html("Enabling")
+        $("#startstop-" + desired_eleid).attr("disabled", true)
+        var xhttp = new XMLHttpRequest()
+        xhttp.open("POST", "start/console/port", true)
+        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+        xhttp.timeout = 300000
+        xhttp.send(JSON.stringify(data))
+        waitingDialog.show("Starting Port....")
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                waitingDialog.hide()
+                $("#startstop-" + desired_eleid).removeAttr("disabled", true)
+                $("#startstop-" + desired_eleid).html("Disable")
+                $("#startstop-" + desired_eleid).removeClass("btn-info")
+                $("#startstop-" + desired_eleid).addClass("btn-danger")
+                $("#startstop-" + desired_eleid).attr("onclick", "stopport('" + eleid + "')")
+                $("#console-" + desired_eleid).removeAttr("disabled", true)
+                $("#logs-" + desired_eleid).removeAttr("disabled", true)
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                waitingDialog.hide()
+                boxalert(this.responseText)
+                TableCreation()
+            }
+        }
+    };
+
+    // Stop port function
+    function stopport(eleid) {
+        var desired_eleid = eleid.replace(/[:.&\/-\s]/gi, '')
+        var data = {}
+        data["hostname"] = eleid.split("&")[0]
+        data["port"] = eleid.split("&")[1]
+        console.log(data)
+        $("#startstop-" + desired_eleid).html("Disabling")
+        $("#startstop-" + desired_eleid).attr("disabled", true)
+        var xhttp = new XMLHttpRequest()
+        xhttp.open("POST", "stop/console/port", true)
+        xhttp.timeout = 300000
+        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+        xhttp.send(JSON.stringify(data))
+        waitingDialog.show("Stoppping port.....")
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                waitingDialog.hide()
+                $("#startstop-" + desired_eleid).removeAttr("disabled", true)
+                $("#startstop-" + desired_eleid).html("Enable")
+                $("#startstop-" + desired_eleid).removeClass("btn-danger")
+                $("#startstop-" + desired_eleid).addClass("btn-info")
+                $("#startstop-" + desired_eleid).attr("onclick", "startport('" + eleid + "')")
+                $("#console-" + desired_eleid).attr("disabled", true)
+                $("#logs-" + desired_eleid).attr("disabled", true)
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                waitingDialog.hide()
+                boxalert(this.responseText)
+                TableCreation()
+            }
+        }
+    };
+
+    // On page load run function or catch any addport button click.
+    $(document).ready(function () {
+        $("#portstag").show()
+        HomeTableCreation()
+        $("#addhost").click(function () {
+            var data = {}
+            data["hostname"] = $("#hostname").val()
+            data["port"] = $("#hostport").val()
+            data["location"] = $("#hostlocation").val()
+            var xhttp = new XMLHttpRequest()
+            xhttp.open("POST", "add/host", true)
+            xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+            xhttp.send(JSON.stringify(data))
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    $("#hostname").val("")
+                    $("#hostport").val("")
+                    $("#hostlocation").val("")
+                    HostTableCreation()
+                }
+                if (this.readyState == 4 && this.status != 200) {
+                    boxalert(this.responseText)
+                }
+            }
+        })
+        $("#addport").click(function () {
+            var data = {}
+            data["description"] = $("#adddevicename").val()
+            data["newname"] = $("#addportid").val()
+            data["baudrate"] = parseInt($("#addbaudrate").val())
+            data["hosttuple"] = $("#hostaddport").val()
+            console.log(data)
+            if (data["hosttuple"] == "Select Host") {
+                boxalert("Please select host.")
+            }
+            var xhttp = new XMLHttpRequest()
+            xhttp.open("POST", "add/console/port", true)
+            xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+            xhttp.send(JSON.stringify(data))
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    $("#adddevicename").val("")
+                    $("#addportid").val("")
+                    $("#addbaudrate").val("")
+                    HomeTableCreation()
+                }
+                if (this.readyState == 4 && this.status != 200) {
+                    boxalert(this.responseText);
+                }
+            }
+        })
+    });
+
+    // Editport function to edit any existing port.
+    function editconsoleport() {
+        var data = {}
+        data["existinghostname"] = $("#id").val()
+        data["description"] = $("#editdevicename").val()
+        data["newname"] = $("#editportid").val()
+        data["baudrate"] = parseInt($("#editbaudrate").val())
+        var xhttp = new XMLHttpRequest()
+        xhttp.open("POST", "edit/console/port", true)
+        xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8")
+        xhttp.send(JSON.stringify(data))
+        $("#modal-submit").attr("disabled", true)
+        $("#modal-close").attr("disabled", true)
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                HomeTableCreation()
+                $("#editconsoleportmodal").modal("hide")
+                $("#modal-submit").removeAttr("disabled", true)
+                $("#modal-close").removeAttr("disabled", true)
+            }
+            if (this.readyState == 4 && this.status != 200) {
+                $("#editconsoleportmodal").modal("hide")
+                $("#modal-submit").removeAttr("disabled", true)
+                $("#modal-close").removeAttr("disabled", true)
+                boxalert(this.responseText)
+            }
+        }
+    };
+
+    // This will change add client ssid dropdown dynamically.
+    function hostsdropdown(host_data) {
+        document.getElementById("hostdevices").innerHTML = ""
+        var parent = document.createElement("select")
+        parent.className = "custom-select"
+        parent.id = "hostaddport"
+        parent.style = "text-align-last:center"
+        var def = document.createElement("option")
+        host_data = JSON.parse(host_data)
+        // console.log(host_data)
+        if (host_data.length > 0) {
+            def.innerHTML = "Select Host"
+        } else {
+            def.innerHTML = "No Host"
+        }
+        parent.appendChild(def)
+        for (index in host_data) {
+            var tmp = document.createElement("option")
+            tmp.value = host_data[index]["hostname"] + ":" + host_data[index]["port"]
+            tmp.innerHTML = host_data[index]["hostname"] + ":" + host_data[index]["port"] + "(" + host_data[index]["location"] + ")"
+            parent.appendChild(tmp)
+        }
+        divcon = document.getElementById("hostdevices")
+        divcon.appendChild(parent)
+    };
+
+</script>
+
+<body>
+    <div class="container-fluid">
+        <div id="portstag" style="display: none;">
+            <h5>Device Details
+                <hr class="new4">
+            </h5>
+            <div class="form-row">
+                <div id="hostdevices" class="input-group mb-3 col-md-3"></div>
+                <div class="input-group mb-3 col-md-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Port Name</span>
+                    </div>
+                    <input type="text" id="adddevicename" class="form-control text-center" placeholder="Test-Device">
+                </div>
+                <div class="input-group mb-3 col-md-2">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Port ID</span>
+                    </div>
+                    <input type="text" id="addportid" class="form-control text-center" placeholder="/dev/ttyUSB1">
+                </div>
+                <div class="input-group mb-3 col-md-2">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Baudrate</span>
+                    </div>
+                    <input type="text" id="addbaudrate" class="form-control text-center" placeholder="115200">
+                </div>
+                <div class="mb-3 col-md-2 text-center">
+                    <button class="btn btn-outline-secondary" id="addport" type="button">Add Device</button>
+                </div>
+            </div>
+            <br>
+            <br>
+            <div id="portresponse"></div>
+        </div>
+        <div id="hoststag" style="display: none;">
+            <h5>Host Details
+                <hr class="new4">
+            </h5>
+            <div class="form-row">
+                <!-- <div id="hostdevices" class="input-group mb-3 col-md-3"></div> -->
+                <div class="input-group mb-3 col-md-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Location</span>
+                    </div>
+                    <input type="text" id="hostlocation" class="form-control text-center" placeholder="Cactus-R1S1">
+                </div>
+                <div class="input-group mb-3 col-md-4">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Host Name/IP</span>
+                    </div>
+                    <input type="text" id="hostname" class="form-control text-center"
+                        placeholder="raspi.dt1.wifi.arista.cloud">
+                </div>
+                <div class="input-group mb-3 col-md-2">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Host Port</span>
+                    </div>
+                    <input type="text" id="hostport" class="form-control text-center" placeholder="8083">
+                </div>
+                <div class="mb-3 col-md-3 text-center">
+                    <button class="btn btn-outline-secondary" id="addhost" type="button">ADD HOST</button>
+                </div>
+            </div>
+            <br>
+            <br>
+            <div id="hostresponse"></div>
+        </div>
+        <div class="modal fade" id="editconsoleportmodal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editconsoleportmodal">Edit Port Details</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <input type="hidden" class="form-control" id="id" name="id">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="editdevicename">Device Name</label>
+                            <input type="text" class="form-control" name="editdevicename" id="editdevicename">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="editportid">Port</label>
+                            <input type="text" class="form-control" name="editportid" id="editportid">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="editbaudrate">Baudrate</label>
+                            <input type="text" class="form-control" name="editbaudrate" id="editbaudrate">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="modal-close"
+                            data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="modal-submit" onclick="editconsoleport()">Save
+                            changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="edithostmodal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="edithostmodal">Edit Host Details</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <input type="hidden" class="form-control" id="hostid" name="hostid">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="edithostlocation">Location</label>
+                            <input type="text" class="form-control" name="edithostlocation" id="edithostlocation">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="edithostname">Host Name</label>
+                            <input type="text" class="form-control" name="edithostname" id="edithostname">
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold ml-1" for="editport">Port</label>
+                            <input type="text" class="form-control" name="editport" id="editport">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="modal-close"
+                            data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="modal-submit" onclick="editport()">Save
+                            changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
