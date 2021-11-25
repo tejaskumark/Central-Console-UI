@@ -66,6 +66,9 @@ def getconsoleports():
             except requests.ConnectionError:
                 host = hostnametulple + "(" + hostdesc + ")"
                 errorhost.append(host)
+            except Exception:
+                host = hostnametulple + "(" + hostdesc + ")"
+                errorhost.append(host)
         if len(errorhost) == 0:
             return json.dumps(allports)
         else:
